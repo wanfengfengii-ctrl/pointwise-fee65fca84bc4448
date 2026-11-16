@@ -17,6 +17,21 @@ Python 3.11 标准库实现的预分词资料字面检索。文档和查询已�
 
 实现每次对全部原文扫描，没有持久索引；设原文总词数为 N、查询词数为 Q，最坏匹配时间 O(NQ)，Corpus.find 不含最终返回值的额外空间为 O(Q + H)，H 为单篇文档的最大命中数（构造时另有 O(N) 文档快照）。不包含改写规则、别名展开或改写检索。
 
+## 改写编译器与规则检索（REWRITES.md）
+
+`from tokenphrase import compile_rewrites` 与 `corpus.with_rules(rules)` 提供一次、单向、非递归的多词改写能力。字面接口与上述语义完全不变；完整表示、不变量与规模上界见 DESIGN.md。
+
+- `compile_rewrites(tokens, rules)`：校验 tokens（非法抛 ValueError）与 rules，返回独立的公开编译结果 `CompiledRewrites`。`result.source_tokens` 是原文词元元组；`result.boundaries` 是原文位置 `0..n`；`result.edges` 是全部切分边（`RewriteEdge`：恒等边保留单词，规则边覆盖整个左部匹配片段并携带右部输出）；`result.adjacency[i]` 是从边界 i 出发的边。区间 `[start, end)` 的完整解释即 DAG 上 start 到 end 的路径输出；`result.recognizer(start, end)` 返回该区间输出语言的公开 `TokenNFA`（无 epsilon 迁移，唯一接受状态是原文边界，链状态不是边界），配套 `boundary_at`、`accepts`，以及通用积操作 `product_reachable`、`languages_intersect`。
+- `corpus.with_rules(rules)`：固定独立规则快照，返回带 `find(query)` 的规则视图，不改变原 Corpus。仅当查询的一条完整解释与某非空原文区间的一条完整解释逐词相等时命中；返回全部去重 `(doc_id, start, end)`（保留重叠、按 ID/start/end 升序），坐标为原文半开词位置，`corpus.evidence(hit)` 直接返回命中区间的完整原文词段。匹配只消费编译器的公开结果，不枚举展开文本；空规则集等价于字面检索。
+
+```python
+medical = Corpus({"d": ["心肌", "梗死"]})
+view = medical.with_rules([(("心肌", "梗死"), ("心梗",))])
+view.find(["心梗"])            # [("d", 0, 2)]
+medical.evidence(("d", 0, 2))  # ("心肌", "梗死")
+medical.find(["心梗"])          # [] —— 字面检索保持不变
+```
+
 ## 运行
 
 ```sh

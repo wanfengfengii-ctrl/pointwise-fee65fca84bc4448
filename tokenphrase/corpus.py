@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from .matching import find_spans
 from .model import Document, document_id, token_tuple
+from .rules import RuleView
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -31,6 +32,14 @@ class Corpus:
             for document in self.documents
             for start, end in find_spans(document.tokens, phrase)
         ]
+
+    def with_rules(self, rules: object) -> RuleView:
+        """Return a rule-aware retrieval view with its own rule snapshot.
+
+        The corpus itself is unchanged; later mutation of the caller's rule
+        container cannot affect the returned view.
+        """
+        return RuleView(self, rules)
 
     def evidence(self, hit: object) -> tuple[str, ...]:
         """Resolve a nonempty source span; the span need not be a prior hit."""
